@@ -1,1 +1,1 @@
-# wave-interference-simulator
+# photoelectric-effect-simulator
