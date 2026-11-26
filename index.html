@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>光電効果シミュレーター</title>
+<style>
+:root{
+  --bg:#eef3f6;--card:#ffffff;--ink:#1b2a38;--sub:#5a6b7a;--line:#cfdbe3;
+  --metal:#8a97a3;--plate:#5d6b78;--elec:#1c6fd1;--accent:#d9480f;--scene:#f7fafc;
+  color-scheme:light;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#101a22;--card:#18242e;--ink:#e6eef4;--sub:#9db0be;--line:#2c3d4a;
+    --metal:#a9b6c1;--plate:#7e8c98;--elec:#5aa9ff;--accent:#ff8a4c;--scene:#0d151c;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101a22;--card:#18242e;--ink:#e6eef4;--sub:#9db0be;--line:#2c3d4a;
+  --metal:#a9b6c1;--plate:#7e8c98;--elec:#5aa9ff;--accent:#ff8a4c;--scene:#0d151c;color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",system-ui,sans-serif;line-height:1.65}
+main{max-width:960px;margin:0 auto;padding:16px 14px 32px}
+h1{font-size:1.35rem;margin:4px 0 2px}
+.lead{color:var(--sub);margin:0 0 14px;font-size:.92rem}
+.grid{display:grid;gap:14px}
+@media(min-width:820px){.grid{grid-template-columns:1.15fr 1fr}.full{grid-column:1/-1}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}
+.card h2{font-size:1rem;margin:0 0 8px}
+canvas{width:100%;height:auto;display:block;border-radius:6px;background:var(--scene)}
+.ctl{display:grid;gap:12px}
+.ctl label{display:block;font-size:.92rem;font-weight:600}
+.ctl output{font-weight:700;color:var(--accent);margin-left:6px}
+input[type=range]{width:100%;accent-color:var(--accent);height:32px}
+.metals{display:flex;flex-wrap:wrap;gap:8px}
+.metals button{font:inherit;font-size:.9rem;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;min-height:40px}
+.metals button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700}
+button:focus-visible,input:focus-visible{outline:3px solid var(--elec);outline-offset:2px}
+.read{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:4px}
+.read div{border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.read small{display:block;color:var(--sub);font-size:.78rem}
+.read b{font-size:1.1rem}
+.msg{margin:10px 0 0;padding:10px 12px;border-radius:8px;border-left:5px solid var(--accent);background:var(--bg);font-size:.95rem}
+.msg.no{border-left-color:var(--sub)}
+.note{color:var(--sub);font-size:.82rem;margin:8px 0 0}
+</style>
+</head>
+<body>
+<main>
+<h1>光電効果シミュレーター</h1>
+<p class="lead">金属に光を当てて、光の振動数と、飛び出す電子の運動エネルギーの最大値の関係を調べよう。</p>
+<div class="grid">
+  <section class="card">
+    <h2>実験のようす</h2>
+    <canvas id="scene" width="1280" height="640" aria-label="光子が金属板に当たり光電子が飛び出す様子"></canvas>
+    <div class="msg" id="msg"></div>
+  </section>
+  <section class="card">
+    <h2>条件を変える</h2>
+    <div class="ctl">
+      <div>
+        <label for="nu">光の振動数 ν<output id="nuO"></output></label>
+        <input id="nu" type="range" min="0.5" max="15" step="0.1" value="3">
+        <div class="note" id="band"></div>
+      </div>
+      <div>
+        <label for="inten">光の強さ（光子の数）<output id="inO"></output></label>
+        <input id="inten" type="range" min="1" max="10" step="1" value="5">
+      </div>
+      <div>
+        <label id="mlabel">金属の種類（仕事関数 W）</label>
+        <div class="metals" id="metals" role="group" aria-labelledby="mlabel"></div>
+      </div>
+    </div>
+    <div class="read">
+      <div><small>波長 λ</small><b id="rLam"></b></div>
+      <div><small>光子1個のエネルギー hν</small><b id="rE"></b></div>
+      <div><small>仕事関数 W</small><b id="rW"></b></div>
+      <div><small>運動エネルギーの最大値 K</small><b id="rK"></b></div>
+    </div>
+  </section>
+  <section class="card full">
+    <h2>光電管：電子の動きを見る</h2>
+    <canvas id="tube" width="1280" height="560" aria-label="光電管の中を陽極へ向かう光電子"></canvas>
+    <div class="ctl" style="margin-top:10px"><div><label for="vol">陽極の電圧 V<output id="vO"></output></label><input id="vol" type="range" min="-5" max="5" step="0.1" value="0"></div></div>
+    <p class="msg" id="tmsg"></p>
+  </section>
+  <section class="card full">
+    <h2>グラフ：振動数 ν と K の関係</h2>
+    <canvas id="graph" width="1280" height="620" aria-label="振動数と光電子の運動エネルギー最大値のグラフ"></canvas>
+    <p class="note">K = hν − W。グラフは直線で、傾きはプランク定数 h（金属が変わっても同じ）。横軸との交点が限界振動数 ν₀ = W/h。光の強さを変えても K は変わらず、飛び出す電子の数だけが変わる。</p>
+  </section>
+  <section class="card full">
+    <h2>グラフ：電圧 V と光電流 I の関係</h2>
+    <canvas id="iv" width="1280" height="620" aria-label="電圧と光電流の関係のグラフ"></canvas>
+    <p class="note">V が負のとき、電子を押し戻す向きに電圧をかけている。電流が 0 になるときの電圧の大きさが阻止電圧 V₀ で、eV₀ = K（V₀ の値は K の eV の数値と同じ）。光の強さを変えると飽和電流の大きさが変わり、振動数を変えると V₀ が変わる。グラフ上の点は、光電管の電圧スライダーの値に対応している。</p>
+  </section>
+</div>
+</main>
+<script>
+(function(){
+  var H=4.136e-15; // eV·s
+  var METALS=[
+    {n:"セシウム",w:1.9,c:"#d9480f"},
+    {n:"ナトリウム",w:2.3,c:"#2b8a3e"},
+    {n:"亜鉛",w:4.3,c:"#1c6fd1"},
+    {n:"銅",w:4.7,c:"#9c36b5"}
+  ];
+  var st={nu:3,inten:5,mi:0,V:0};
+  var $=function(id){return document.getElementById(id)};
+  var sc=$("scene"),sx=sc.getContext("2d"),gr=$("graph"),gx=gr.getContext("2d");
+  sx.scale(2,2);
+  var iv=$("iv"),ix=iv.getContext("2d"),tb=$("tube"),tx=tb.getContext("2d");tx.scale(2,2);
+  function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+  function E(){return H*st.nu*1e14}
+  function K(){return E()-METALS[st.mi].w}
+  function lam(){return 3000/st.nu}
+  function lightColor(){
+    var l=lam();
+    if(l>700)return "hsl(0,70%,32%)";
+    if(l<400)return "hsl(272,90%,62%)";
+    return "hsl("+Math.round((700-l)/300*270)+",95%,50%)";
+  }
+  function band(){
+    var l=lam();
+    return l>700?"赤外線（目に見えない光）":l<400?"紫外線（目に見えない光）":"可視光線";
+  }
+  // buttons
+  var mb=$("metals");
+  METALS.forEach(function(m,i){
+    var b=document.createElement("button");
+    b.textContent=m.n+" "+m.w+" eV";b.setAttribute("aria-pressed",i===0);
+    b.onclick=function(){st.mi=i;[].forEach.call(mb.children,function(x,j){x.setAttribute("aria-pressed",j===i)});update()};
+    mb.appendChild(b);
+  });
+  function update(){
+    st.nu=+$("nu").value;st.inten=+$("inten").value;st.V=+$("vol").value;
+    var m=METALS[st.mi],k=K(),e=E();
+    $("nuO").textContent=st.nu.toFixed(1)+" ×10¹⁴ Hz";
+    $("inO").textContent=st.inten;
+    $("band").textContent=band();
+    $("rLam").textContent=Math.round(lam())+" nm";
+    $("rE").textContent=e.toFixed(2)+" eV";
+    $("rW").textContent=m.w.toFixed(1)+" eV";
+    $("rK").textContent=k>0?k.toFixed(2)+" eV":"0（出ない）";
+    $("vO").textContent=(st.V>0?"+":"")+st.V.toFixed(1)+" V";
+    $("tmsg").textContent=k<=0?"光電子が出ないので、電圧をかけても電流は流れない。":st.V>=0?"陽極が正（＋）なので、電子は陽極に引かれる。電子がすべて届くと、電圧を上げても電流は増えない（飽和電流）。":-st.V<k?"電子を押し戻す向きの電圧。運動エネルギーが e|V| より大きい電子だけが陽極に届く。":"逆電圧が阻止電圧 V₀（"+k.toFixed(2)+" V）以上。どの電子も陽極に届かず、電流は 0。";
+    var nu0=m.w/H/1e14,msg=$("msg");
+    if(k>0){
+      msg.className="msg";
+      msg.textContent="光電子が飛び出す。hν（"+e.toFixed(2)+"）− W（"+m.w.toFixed(1)+"）＝ "+k.toFixed(2)+" eV は最大値。電子ごとに速さはばらつき、最も速い電子がこの値になる。";
+    }else{
+      msg.className="msg no";
+      msg.textContent="光電子は出ない。hν が W より小さいから。限界振動数は約 "+nu0.toFixed(1)+"×10¹⁴ Hz。光を強くしても出ない。";
+    }
+  }
+  $("nu").oninput=update;$("inten").oninput=update;$("vol").oninput=update;
+  // particles
+  var ph=[],el=[],puff=[],acc=0,last=performance.now();
+  var PY=520/2,PX0=80,PX1=260;  // logical 640x320, plate y=260
+  PY=260;PX0=150;PX1=520;
+  var DX=Math.sin(0.43),DY=Math.cos(0.43);
+  function step(now){
+    var dt=Math.min((now-last)/1000,.05);last=now;
+    acc+=dt*st.inten*2;
+    while(acc>=1){acc-=1;ph.push({x:60+Math.random()*340,y:-8});}
+    var k=K();
+    for(var i=ph.length-1;i>=0;i--){
+      var p=ph[i];p.x+=DX*260*dt;p.y+=DY*260*dt;
+      if(p.y>=PY){
+        if(k>0){
+          var ki=k*Math.sqrt(Math.random());
+          var v=35+120*Math.sqrt(ki/4);
+          el.push({x:p.x,y:PY-4,vx:(Math.random()-.5)*24,vy:-v});
+        }else puff.push({x:p.x,y:PY-2,t:0});
+        ph.splice(i,1);
+      }
+    }
+    el=el.filter(function(e){e.x+=e.vx*dt;e.y+=e.vy*dt;return e.y>-10});
+    puff=puff.filter(function(q){q.t+=dt;return q.t<.4});
+    drawScene();drawTube(dt);drawGraph();drawIV();
+    requestAnimationFrame(step);
+  }
+  function drawScene(){
+    var c=sx,ink=css("--ink"),sub=css("--sub");
+    c.clearRect(0,0,640,320);
+    // plate
+    c.fillStyle=css("--metal");c.fillRect(PX0,PY,PX1-PX0,22);
+    c.fillStyle=css("--plate");c.fillRect(PX0,PY+22,PX1-PX0,8);
+    c.fillStyle=ink;c.font="13px sans-serif";c.textAlign="center";
+    c.fillText(METALS[st.mi].n+"（金属板）",(PX0+PX1)/2,PY+50);
+    // photons
+    var col=lightColor();
+    c.strokeStyle=col;c.lineWidth=3;c.lineCap="round";
+    if(lam()<400||lam()>700)c.setLineDash([5,4]);
+    ph.forEach(function(p){c.beginPath();c.moveTo(p.x,p.y);c.lineTo(p.x-DX*16,p.y-DY*16);c.stroke()});
+    c.setLineDash([]);
+    // electrons
+    var ec=css("--elec");
+    el.forEach(function(e){
+      c.fillStyle=ec;c.beginPath();c.arc(e.x,e.y,5,0,6.2832);c.fill();
+      c.fillStyle="#fff";c.font="bold 8px sans-serif";c.fillText("−",e.x,e.y+3);
+    });
+    // no-emission puff
+    c.strokeStyle=sub;c.lineWidth=1.5;
+    puff.forEach(function(q){var r=3+q.t*20;c.globalAlpha=1-q.t/.4;c.beginPath();c.arc(q.x,q.y,r,Math.PI,0);c.stroke()});
+    c.globalAlpha=1;
+    // labels
+    c.fillStyle=sub;c.font="12px sans-serif";c.textAlign="left";
+    c.fillText("光（光子）",12,18);
+    c.fillStyle=ec;c.fillText("● 光電子",12,36);
+    c.fillStyle=ink;c.textAlign="right";
+    c.fillText("光子1個 = "+E().toFixed(2)+" eV",628,18);
+  }
+  function drawGraph(){
+    var c=gx,W=640,Ht=310;
+    c.setTransform(2,0,0,2,0,0);c.clearRect(0,0,W,Ht);
+    var L=62,R=20,T=18,B=48,xmax=15,ymax=5;
+    var X=function(v){return L+v/xmax*(W-L-R)},Y=function(v){return Ht-B-v/ymax*(Ht-T-B)};
+    var ink=css("--ink"),sub=css("--sub"),line=css("--line");
+    c.font="12px sans-serif";c.lineWidth=1;
+    c.strokeStyle=line;c.fillStyle=sub;c.textAlign="center";
+    for(var x=0;x<=xmax;x+=3){c.beginPath();c.moveTo(X(x),T);c.lineTo(X(x),Ht-B);c.stroke();c.fillText(x,X(x),Ht-B+16)}
+    c.textAlign="right";
+    for(var y=0;y<=ymax;y++){c.beginPath();c.moveTo(L,Y(y));c.lineTo(W-R,Y(y));c.stroke();c.fillText(y,L-8,Y(y)+4)}
+    c.strokeStyle=ink;c.lineWidth=1.8;c.beginPath();c.moveTo(L,T);c.lineTo(L,Ht-B);c.lineTo(W-R,Ht-B);c.stroke();
+    c.fillStyle=ink;c.textAlign="center";
+    c.fillText("振動数 ν（×10¹⁴ Hz）",(L+W-R)/2,Ht-10);
+    c.save();c.translate(16,(T+Ht-B)/2);c.rotate(-Math.PI/2);c.fillText("K（eV）",0,0);c.restore();
+    // lines
+    METALS.forEach(function(m,i){
+      var n0=m.w/H/1e14,sel=i===st.mi;
+      c.strokeStyle=m.c;c.globalAlpha=sel?1:.35;c.lineWidth=sel?3.5:1.5;
+      c.beginPath();c.moveTo(X(n0),Y(0));c.lineTo(X(xmax),Y(H*xmax*1e14-m.w));c.stroke();
+      c.globalAlpha=1;
+    });
+    // threshold marker
+    var m=METALS[st.mi],n0=m.w/H/1e14;
+    c.fillStyle=m.c;c.beginPath();c.arc(X(n0),Y(0),4,0,6.2832);c.fill();
+    c.textAlign="center";c.fillText("ν₀ ≈ "+n0.toFixed(1),X(n0),Ht-B-9);
+    // current point
+    var k=Math.max(K(),0),px=X(st.nu),py=Y(k);
+    c.setLineDash([4,4]);c.strokeStyle=sub;c.lineWidth=1;
+    c.beginPath();c.moveTo(px,Ht-B);c.lineTo(px,py);c.lineTo(L,py);c.stroke();c.setLineDash([]);
+    c.fillStyle=lightColor();c.strokeStyle=ink;c.lineWidth=2;
+    c.beginPath();c.arc(px,py,7,0,6.2832);c.fill();c.stroke();
+    // legend
+    c.textAlign="left";c.font="12px sans-serif";
+    METALS.forEach(function(mm,i){c.fillStyle=mm.c;c.fillText("■ "+mm.n,L+10+i*88,T+10)});
+  }
+  function Icur(v){var k=Math.max(K(),0);return v>=0?st.inten:(k>0&&-v<k?st.inten*(1-(v/k)*(v/k)):0)}
+  var tph=[],tel=[],tfl=[],tacc=0;
+  function drawTube(dt){
+    var c=tx,S=150,D=400,CX=100,AX=500,i,k=Math.max(K(),0);
+    tacc+=dt*st.inten*2;
+    while(tacc>=1){tacc-=1;tph.push({x:134+Math.random()*60,y:0});}
+    for(i=tph.length-1;i>=0;i--){
+      var p=tph[i];p.x-=DX*260*dt;p.y+=DY*260*dt;
+      if(p.x<=CX+1){
+        if(k>0){var ki=Math.max(k*Math.sqrt(Math.random()),0.02);tel.push({x:CX+2,y:p.y,vx:S*Math.sqrt(ki),vy:(Math.random()-.5)*30});}
+        else tfl.push({x:CX+2,y:p.y,t:0,c:0});
+        tph.splice(i,1);
+      }
+    }
+    var ax=st.V*S*S/(2*D);
+    for(i=tel.length-1;i>=0;i--){
+      var e=tel[i];e.vx+=ax*dt;e.x+=e.vx*dt;e.y+=e.vy*dt;
+      if(e.y<36||e.y>224){e.vy=-e.vy;e.y=Math.max(36,Math.min(224,e.y));}
+      if(e.x>=AX){tfl.push({x:AX,y:e.y,t:0,c:1});tel.splice(i,1);}
+      else if(e.x<=CX){tel.splice(i,1);}
+    }
+    tfl=tfl.filter(function(q){q.t+=dt;return q.t<.4});
+    var ink=css("--ink"),sub=css("--sub"),ec=css("--elec"),metal=css("--metal");
+    c.setTransform(2,0,0,2,0,0);c.clearRect(0,0,640,280);
+    c.strokeStyle=sub;c.lineWidth=2;c.beginPath();
+    c.moveTo(60,30);c.lineTo(580,30);c.quadraticCurveTo(610,30,610,60);c.lineTo(610,200);c.quadraticCurveTo(610,230,580,230);c.lineTo(60,230);c.quadraticCurveTo(30,230,30,200);c.lineTo(30,60);c.quadraticCurveTo(30,30,60,30);c.stroke();
+    // wires and battery
+    c.strokeStyle=ink;c.lineWidth=1.5;c.beginPath();
+    c.moveTo(CX-4,210);c.lineTo(CX-4,250);c.lineTo(294,250);c.moveTo(306,250);c.lineTo(AX+4,250);c.lineTo(AX+4,210);c.stroke();
+    var pos=st.V>=0?306:294,neg=st.V>=0?294:306;
+    c.lineWidth=3;c.beginPath();c.moveTo(pos,238);c.lineTo(pos,262);c.stroke();
+    c.lineWidth=3;c.beginPath();c.moveTo(neg,244);c.lineTo(neg,256);c.stroke();
+    // plates
+    c.fillStyle=metal;c.fillRect(CX-8,70,8,140);c.fillRect(AX,70,8,140);
+    c.fillStyle=ink;c.font="13px sans-serif";c.textAlign="center";
+    c.fillText("陰極",CX-4,222);
+    c.fillText("陽極（"+(st.V>0?"＋":st.V<0?"−":"0")+"）",AX+4,222);
+    c.fillText("電源 V = "+(st.V>0?"+":"")+st.V.toFixed(1)+" V",300,277);
+    // force arrows on electrons
+    if(Math.abs(st.V)>0.05){
+      var dr=st.V>0?1:-1,len=24+8*Math.abs(st.V);
+      c.strokeStyle=sub;c.fillStyle=sub;c.lineWidth=2;c.globalAlpha=.7;
+      [100,130,160].forEach(function(yy){
+        var x1=300-dr*len/2,x2=300+dr*len/2;
+        c.beginPath();c.moveTo(x1,yy);c.lineTo(x2,yy);c.stroke();
+        c.beginPath();c.moveTo(x2,yy);c.lineTo(x2-dr*8,yy-4);c.lineTo(x2-dr*8,yy+4);c.closePath();c.fill();
+      });
+      c.globalAlpha=1;c.font="11px sans-serif";c.fillStyle=sub;c.fillText("電子にはたらく力",300,186);
+    }
+    // photons
+    c.strokeStyle=lightColor();c.lineWidth=3;c.lineCap="round";
+    if(lam()<400||lam()>700)c.setLineDash([5,4]);
+    tph.forEach(function(q){c.beginPath();c.moveTo(q.x,q.y);c.lineTo(q.x+DX*16,q.y-DY*16);c.stroke()});
+    c.setLineDash([]);
+    // electrons
+    tel.forEach(function(q){c.fillStyle=ec;c.beginPath();c.arc(q.x,q.y,5,0,6.2832);c.fill();c.fillStyle="#fff";c.font="bold 8px sans-serif";c.fillText("−",q.x,q.y+3)});
+    tfl.forEach(function(q){c.globalAlpha=1-q.t/.4;c.strokeStyle=q.c?ec:sub;c.lineWidth=1.5;c.beginPath();c.arc(q.x,q.y,3+q.t*18,0,6.2832);c.stroke()});
+    c.globalAlpha=1;
+    c.font="12px sans-serif";c.textAlign="left";c.fillStyle=sub;c.fillText("光（光子）",12,18);
+    c.textAlign="right";c.fillStyle=ink;c.fillText("光電流 I ≈ "+Icur(st.V).toFixed(1)+"（相対値）",628,18);
+  }
+  function drawIV(){
+    var c=ix,W=640,Ht=310,L=62,R=20,T=18,B=48,vmin=-5,vmax=5,ymax=10;
+    c.setTransform(2,0,0,2,0,0);c.clearRect(0,0,W,Ht);
+    var X=function(v){return L+(v-vmin)/(vmax-vmin)*(W-L-R)},Y=function(v){return Ht-B-v/ymax*(Ht-T-B)};
+    var ink=css("--ink"),sub=css("--sub"),line=css("--line"),col=METALS[st.mi].c;
+    c.font="12px sans-serif";c.lineWidth=1;c.strokeStyle=line;c.fillStyle=sub;c.textAlign="center";
+    for(var x=vmin;x<=vmax;x++){c.beginPath();c.moveTo(X(x),T);c.lineTo(X(x),Ht-B);c.stroke();c.fillText(x,X(x),Ht-B+16)}
+    c.textAlign="right";
+    for(var y=0;y<=ymax;y+=2){c.beginPath();c.moveTo(L,Y(y));c.lineTo(W-R,Y(y));c.stroke();c.fillText(y,L-8,Y(y)+4)}
+    c.strokeStyle=ink;c.lineWidth=1.8;c.beginPath();c.moveTo(X(0),T);c.lineTo(X(0),Ht-B);c.moveTo(L,Ht-B);c.lineTo(W-R,Ht-B);c.stroke();
+    c.fillStyle=ink;c.textAlign="center";
+    c.fillText("電圧 V（V）　左：電子を押し戻す向き",(L+W-R)/2,Ht-10);
+    c.save();c.translate(16,(T+Ht-B)/2);c.rotate(-Math.PI/2);c.fillText("光電流 I（相対値）",0,0);c.restore();
+    var k=Math.max(K(),0),sat=st.inten;
+    c.strokeStyle=col;c.lineWidth=3.5;c.beginPath();
+    for(var v=vmin;v<=vmax+1e-9;v+=0.05){
+      var i=v>=0?sat:(k>0&&-v<k?sat*(1-(v/k)*(v/k)):0);
+      if(v===vmin)c.moveTo(X(v),Y(i));else c.lineTo(X(v),Y(i));
+    }
+    c.stroke();
+    c.fillStyle=ink;c.strokeStyle=col;c.lineWidth=2;c.beginPath();c.arc(X(st.V),Y(Icur(st.V)),6,0,6.2832);c.fill();c.stroke();
+    c.font="12px sans-serif";
+    if(k>0){
+      c.fillStyle=col;c.beginPath();c.arc(X(-k),Y(0),5,0,6.2832);c.fill();
+      c.fillStyle=ink;c.textAlign="center";c.fillText("−V₀ = −"+k.toFixed(2)+" V",X(-k),Ht-B-10);
+      c.textAlign="left";c.fillStyle=sub;c.fillText("飽和電流（光の強さに比例）",X(0.4),Y(sat)-8);
+    }else{
+      c.fillStyle=sub;c.textAlign="center";c.fillText("光電子が出ないので、光電流は流れない",X(0),Y(4));
+    }
+  }
+  update();requestAnimationFrame(function(t){last=t;step(t)});
+})();
+</script>
+</body>
+</html>
